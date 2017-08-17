@@ -32,7 +32,7 @@ public:
   MatrixXd Xsig_pred_;
 
   ///* time when the state is true, in us
-  long long time_us_;
+  float time_us_;
 
   ///* Process noise standard deviation longitudinal acceleration in m/s^2
   double std_a_;
@@ -68,6 +68,9 @@ public:
   double lambda_;
 
 
+  float lastpx;
+
+  int iterations;
   /**
    * Constructor
    */
