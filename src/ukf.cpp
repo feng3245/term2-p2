@@ -52,7 +52,7 @@ UKF::UKF() {
   */
   n_x_ = 5;
   n_aug_ = 7;
-
+P_ = MatrixXd::Identity(n_x_,n_x_);
   lambda_ = 3 - n_aug_;
   weights_ = VectorXd(2*n_aug_+1);
    double weight_0 = lambda_/(lambda_+n_aug_);
@@ -79,6 +79,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   */
 	if(!is_initialized_)
 	{
+
+	time_us_ = meas_package.timestamp_;
 		if(meas_package.sensor_type_ == MeasurementPackage::RADAR)			{
 			x_ = VectorXd(5);
 float ro,theta, ro_dot;
@@ -90,7 +92,11 @@ float ro,theta, ro_dot;
       px = ro*cos(theta);
       py = ro*sin(theta);
 			lastpx = px;
-			x_  << px, py, 0, 0, 0; 
+		
+ 
+				//x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
+x_  << px, py, 2, 2, 0; 
+
 		}
 		else
 		{
@@ -99,27 +105,13 @@ float ro,theta, ro_dot;
 			x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0, 0; 
 		}
 	
-		iterations++;
 		is_initialized_ = true;
 		return;
 	}
 	float dt = ((float)meas_package.timestamp_ - time_us_) / 1000000.0;
 	time_us_ = meas_package.timestamp_;
-	if(iterations == 1 && meas_package.sensor_type_ == MeasurementPackage::RADAR)
-	{
-					x_ = VectorXd(5);
-float ro,theta, ro_dot;
 
-      ro = meas_package.raw_measurements_[0];
-      theta = meas_package.raw_measurements_[1];
-      ro_dot = meas_package.raw_measurements_[2];
-      float px,py;
-      px = ro*cos(theta);
-      py = ro*sin(theta);
-	float vx = ro_dot*cos(theta);
-	float vy = ro_dot*sin(theta);
-				x_  << px, py, 1/sin(atan2(vy,vx))*vy, atan2(vy,vx), 0; 
-	}
+
 	Prediction(dt); 
 	if(meas_package.sensor_type_ == MeasurementPackage::RADAR)
 	{
@@ -250,25 +242,64 @@ void UKF::Prediction(double delta_t) {
 /*******************************************************************************
  * Student part begin
  ******************************************************************************/
+for(int i = 0; i < 2 * n_aug_ + 1; i++)
+{
+while(Xsig_pred(3,i)>M_PI)
+{
+Xsig_pred(3,i) -= 2*M_PI;
+}
+while(Xsig_pred(3,i)<-M_PI)
+{
+Xsig_pred(3,i) += 2*M_PI;
+}
+
+}
 x.fill(0.0);
   //predicted state mean
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
     x = x+ weights_(i) * Xsig_pred.col(i);
   }
-P.fill(0.0);
   //predicted state covariance matrix
+ while(x(3) > M_PI)
+  {
+ x(3) -= 2*M_PI;
+  }
+  while(x(3) < -M_PI)
+  {
+  x(3) += 2*M_PI;
+  }
+
+
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
 
     // state difference
     VectorXd x_diff = Xsig_pred.col(i) - x;
     //angle normalization
-x_diff(3) = atan2(sin(x_diff(3)), cos(x_diff(3)));
+  while(x_diff(3) > M_PI)
+  {
+ x_diff(3) -= 2*M_PI;
+  }
+  while(x_diff(3) < -M_PI)
+  {
+  x_diff(3) += 2*M_PI;
+  }
+
 
     P = P + weights_(i) * x_diff * x_diff.transpose();
 
 cout << "p at " <<i <<" "<< P<<endl;
   }
 x_ = x;
+while(P(3)>M_PI)
+{
+ P(3) -= 2*M_PI;
+
+}
+while(P(3)<-M_PI)
+{
+ P(3) += 2*M_PI;
+}
+
 P_ = P;
 Xsig_pred_ = Xsig_pred;
 cout <<"xsig is " << Xsig_pred << endl;
