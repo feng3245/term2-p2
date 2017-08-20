@@ -94,21 +94,22 @@ float ro,theta, ro_dot;
 			lastpx = px;
 		
  
-				//x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
-x_  << px, py, 2, 2, 0; 
+				x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
 
 		}
 		else
 		{
 			lastpx = meas_package.raw_measurements_[0];
 			x_ = VectorXd(5);
-			x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0, 0; 
+float px = meas_package.raw_measurements_[0];
+float py = meas_package.raw_measurements_[1];
+			x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
 		}
 	
 		is_initialized_ = true;
 		return;
 	}
-	float dt = ((float)meas_package.timestamp_ - time_us_) / 1000000.0;
+	float dt = (meas_package.timestamp_ - time_us_) / 1000000.0;
 	time_us_ = meas_package.timestamp_;
 
 
@@ -121,7 +122,7 @@ x_  << px, py, 2, 2, 0;
 	}
 	else
 	{
-		UpdateLidar(meas_package); 	
+//		UpdateLidar(meas_package); 	
 	}
 }
 
@@ -193,44 +194,51 @@ void UKF::Prediction(double delta_t) {
   //avoid division by zero
   //write predicted sigma points into right column
   int i = 0;
-  for(i =0 ; i<(2*n_aug_+1); i++)
+//predict sigma points
+  for (int i = 0; i< 2*n_aug_+1; i++)
   {
-      MatrixXd influence = MatrixXd(n_x_, 1);
-      MatrixXd integral = MatrixXd(n_x_, 1);
-      float yawraterate = Xsig_aug( n_aug_-1, i);
-      float yawk= Xsig_aug( n_aug_-3, i);
-      float vak = Xsig_aug(n_aug_-2, i);
-      float vk = Xsig_aug(2, i);
-      float yaw = Xsig_aug(3, i);
-      integral(0, 0) = 0.5*delta_t*delta_t*cos(yaw)*vak;
-      integral(1, 0) = 0.5*delta_t*delta_t*sin(yaw)*vak;
-      integral(2, 0) = delta_t * vak;
-      integral(3, 0) = 0.5*delta_t*delta_t*yawraterate;
-      integral(4, 0) = delta_t*yawraterate;
-      if(yawk==0)
-      {
-          
-          influence(0,0) = vk*cos(yaw)*delta_t;
-          influence(1,0) = vk*sin(yaw)*delta_t;
-          influence(2,0) = 0;
-          influence(3,0) = yawk*delta_t;
-          influence(4,0) = 0;
-      }
-      else
-      {
-          
-          influence(0,0) = vk/yawk*(sin(yaw+delta_t*yawk)-sin(yaw));
-          influence(1,0) = vk/yawk*(-1*cos(yaw+delta_t*yawk)+cos(yaw));
-          influence(2,0) = 0;
-          influence(3,0) = yawk*delta_t;
-          influence(4,0) = 0;
-          
-           
-            
-      }
-       Xsig_pred.col(i) += influence+integral;
+    //extract values for better readability
+    double p_x = Xsig_aug(0,i);
+    double p_y = Xsig_aug(1,i);
+    double v = Xsig_aug(2,i);
+    double yaw = Xsig_aug(3,i);
+    double yawd = Xsig_aug(4,i);
+    double nu_a = Xsig_aug(5,i);
+    double nu_yawdd = Xsig_aug(6,i);
+
+    //predicted state values
+    double px_p, py_p;
+
+    //avoid division by zero
+    if (fabs(yawd) > 0.001) {
+        px_p = p_x + v/yawd * ( sin (yaw + yawd*delta_t) - sin(yaw));
+        py_p = p_y + v/yawd * ( cos(yaw) - cos(yaw+yawd*delta_t) );
+    }
+    else {
+        px_p = p_x + v*delta_t*cos(yaw);
+        py_p = p_y + v*delta_t*sin(yaw);
+    }
+
+    double v_p = v;
+    double yaw_p = yaw + yawd*delta_t;
+    double yawd_p = yawd;
+
+    //add noise
+    px_p = px_p + 0.5*nu_a*delta_t*delta_t * cos(yaw);
+    py_p = py_p + 0.5*nu_a*delta_t*delta_t * sin(yaw);
+    v_p = v_p + nu_a*delta_t;
+
+    yaw_p = yaw_p + 0.5*nu_yawdd*delta_t*delta_t;
+    yawd_p = yawd_p + nu_yawdd*delta_t;
+
+    //write predicted sigma point into right column
+    Xsig_pred(0,i) = px_p;
+    Xsig_pred(1,i) = py_p;
+    Xsig_pred(2,i) = v_p;
+    Xsig_pred(3,i) = yaw_p;
+    Xsig_pred(4,i) = yawd_p;
   }
-  //create vector for weights
+ //create vector for weights
   
   //create vector for predicted state
 
