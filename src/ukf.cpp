@@ -94,7 +94,9 @@ float ro,theta, ro_dot;
 			lastpx = px;
 		
  
-				x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
+//				x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
+x_  << px, py, 10, 0, 3; 
+
 
 		}
 		else
@@ -103,7 +105,9 @@ float ro,theta, ro_dot;
 			x_ = VectorXd(5);
 float px = meas_package.raw_measurements_[0];
 float py = meas_package.raw_measurements_[1];
-			x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
+//			x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0;
+ x_  << px, py, 10, 0, 3; 
+
 		}
 	
 		is_initialized_ = true;
@@ -118,7 +122,7 @@ float py = meas_package.raw_measurements_[1];
 	{
 		
 
-		UpdateRadar(meas_package); 
+//		UpdateRadar(meas_package); 
 	}
 	else
 	{
@@ -250,18 +254,7 @@ void UKF::Prediction(double delta_t) {
 /*******************************************************************************
  * Student part begin
  ******************************************************************************/
-for(int i = 0; i < 2 * n_aug_ + 1; i++)
-{
-while(Xsig_pred(3,i)>M_PI)
-{
-Xsig_pred(3,i) -= 2*M_PI;
-}
-while(Xsig_pred(3,i)<-M_PI)
-{
-Xsig_pred(3,i) += 2*M_PI;
-}
 
-}
 x.fill(0.0);
   //predicted state mean
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
@@ -276,6 +269,7 @@ x.fill(0.0);
   {
   x(3) += 2*M_PI;
   }
+
 
 
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
@@ -295,7 +289,6 @@ x.fill(0.0);
 
     P = P + weights_(i) * x_diff * x_diff.transpose();
 
-cout << "p at " <<i <<" "<< P<<endl;
   }
 x_ = x;
 while(P(3)>M_PI)
@@ -310,7 +303,25 @@ while(P(3)<-M_PI)
 
 P_ = P;
 Xsig_pred_ = Xsig_pred;
-cout <<"xsig is " << Xsig_pred << endl;
+if(abs(P_(3))>M_PI)
+{
+cout << "Yaw converiance out of bound " << P_(3) << endl;
+}
+if(abs(P_(4))>M_PI)
+{
+cout << "Yaw rate converiance out of bound " << P_(4) << endl;
+}
+if(abs(Xsig_pred_(3))>M_PI)
+{
+cout << "Yaw xsigpred out of bound " << Xsig_pred_(3) << endl;
+}
+if(abs(Xsig_pred_(4))>M_PI)
+{
+cout << "Yaw rate xsigpred out of bound " << Xsig_pred_(4) << endl;
+}
+
+cout << x_ << endl;
+
 }
 
 /**
@@ -354,7 +365,7 @@ z << meas_package.raw_measurements_[0],  meas_package.raw_measurements_[1], meas
 /*******************************************************************************
  * Student part begin
  ******************************************************************************/
-cout << Xsig_pred_ << endl;
+
   //transform sigma points into measurement space
   MatrixXd Noise = MatrixXd(n_z,n_z);
   int i = 0;
