@@ -50,6 +50,8 @@ UKF::UKF() {
 
   Hint: one or more values initialized above might be wildly off...
   */
+  Xsig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
+  Xsig_pred_.fill(0.0);
   n_x_ = 5;
   n_aug_ = 7;
 P_ = MatrixXd::Identity(n_x_,n_x_);
@@ -194,7 +196,6 @@ void UKF::Prediction(double delta_t) {
   
   //predict sigma points
   Xsig_pred.fill(0.0);
-  Xsig_pred = Xsig_aug.block(0,0,n_x_, 2 * n_aug_ + 1);
   //avoid division by zero
   //write predicted sigma points into right column
   int i = 0;
@@ -261,17 +262,9 @@ x.fill(0.0);
     x = x+ weights_(i) * Xsig_pred.col(i);
   }
   //predicted state covariance matrix
- while(x(3) > M_PI)
-  {
- x(3) -= 2*M_PI;
-  }
-  while(x(3) < -M_PI)
-  {
-  x(3) += 2*M_PI;
-  }
 
 
-
+P.fill(0.0);
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
 
     // state difference
@@ -290,16 +283,8 @@ x.fill(0.0);
     P = P + weights_(i) * x_diff * x_diff.transpose();
 
   }
-x_ = x;
-while(P(3)>M_PI)
-{
- P(3) -= 2*M_PI;
 
-}
-while(P(3)<-M_PI)
-{
- P(3) += 2*M_PI;
-}
+x_ = x;
 
 P_ = P;
 Xsig_pred_ = Xsig_pred;
