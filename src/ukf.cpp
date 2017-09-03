@@ -11,8 +11,24 @@ using std::vector;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() {
+
+R_ = MatrixXd(2, 2);
+//using this instead
+R_ << 0.020, 0,
+        0, 0.020;
+ H_ = MatrixXd(2, 5);
+H_ << 1, 0, 0, 0, 0,
+	0, 1, 0, 0, 0;
+
+topLidarNIS = 0;
+
+measurementsLidar = 0;
+  topRadarNIS=0;
+
+  measurementsRadar=0;
+
   // if this is false, laser measurements will be ignored (except during init)
-  use_laser_ = false;
+  use_laser_ = true;
 
   // if this is false, radar measurements will be ignored (except during init)
   use_radar_ = true;
@@ -24,10 +40,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 1;
+  std_a_ = 0.5;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 1;
+  std_yawdd_ = 0.5;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -50,10 +66,11 @@ UKF::UKF() {
 
   Hint: one or more values initialized above might be wildly off...
   */
+ n_x_ = 5;
+  n_aug_ = 7;
   Xsig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
   Xsig_pred_.fill(0.0);
-  n_x_ = 5;
-  n_aug_ = 7;
+ 
 P_ = MatrixXd::Identity(n_x_,n_x_);
   lambda_ = 3 - n_aug_;
   weights_ = VectorXd(2*n_aug_+1);
@@ -96,8 +113,8 @@ float ro,theta, ro_dot;
 			lastpx = px;
 		
  
-//				x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
-x_  << px, py, 10, 0, 3; 
+				x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0; 
+
 
 
 		}
@@ -107,8 +124,8 @@ x_  << px, py, 10, 0, 3;
 			x_ = VectorXd(5);
 float px = meas_package.raw_measurements_[0];
 float py = meas_package.raw_measurements_[1];
-//			x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0;
- x_  << px, py, 10, 0, 3; 
+			x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0;
+
 
 		}
 	
@@ -117,18 +134,29 @@ float py = meas_package.raw_measurements_[1];
 	}
 	float dt = (meas_package.timestamp_ - time_us_) / 1000000.0;
 	time_us_ = meas_package.timestamp_;
+	
+  /*****************************************************************************
+   *  Prediction
+   ****************************************************************************/
 
+  /**
+   TODO:
+     * Update the state transition matrix F according to the new elapsed time.
+      - Time is measured in seconds.
+     * Update the process noise covariance matrix.
+     * Use noise_ax = 9 and noise_ay = 9 for your Q matrix.
+   */
 
 	Prediction(dt); 
 	if(meas_package.sensor_type_ == MeasurementPackage::RADAR)
 	{
 		
 
-//		UpdateRadar(meas_package); 
+		UpdateRadar(meas_package); 
 	}
 	else
 	{
-//		UpdateLidar(meas_package); 	
+		UpdateLidar(meas_package); 	
 	}
 }
 
@@ -263,49 +291,23 @@ x.fill(0.0);
   }
   //predicted state covariance matrix
 
-
 P.fill(0.0);
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
 
     // state difference
     VectorXd x_diff = Xsig_pred.col(i) - x;
-    //angle normalization
-  while(x_diff(3) > M_PI)
-  {
- x_diff(3) -= 2*M_PI;
-  }
-  while(x_diff(3) < -M_PI)
-  {
-  x_diff(3) += 2*M_PI;
-  }
-
 
     P = P + weights_(i) * x_diff * x_diff.transpose();
 
   }
+P(3)= atan2(sin(P(3)),cos(P(3)));
+P(4)= atan2(sin(P(4)),cos(P(4)));
 
 x_ = x;
 
 P_ = P;
 Xsig_pred_ = Xsig_pred;
-if(abs(P_(3))>M_PI)
-{
-cout << "Yaw converiance out of bound " << P_(3) << endl;
-}
-if(abs(P_(4))>M_PI)
-{
-cout << "Yaw rate converiance out of bound " << P_(4) << endl;
-}
-if(abs(Xsig_pred_(3))>M_PI)
-{
-cout << "Yaw xsigpred out of bound " << Xsig_pred_(3) << endl;
-}
-if(abs(Xsig_pred_(4))>M_PI)
-{
-cout << "Yaw rate xsigpred out of bound " << Xsig_pred_(4) << endl;
-}
 
-cout << x_ << endl;
 
 }
 
@@ -322,6 +324,27 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the lidar NIS.
   */
+VectorXd z = meas_package.raw_measurements_;
+VectorXd z_pred = H_ * x_;
+	VectorXd y = z - z_pred;
+	MatrixXd Ht = H_.transpose();
+	MatrixXd S = H_ * P_ * Ht + R_;
+	MatrixXd Si = S.inverse();
+	MatrixXd PHt = P_ * Ht;
+	MatrixXd K = PHt * Si;
+
+	//new estimate
+	x_ = x_ + (K * y);
+	long x_size = x_.size();
+	MatrixXd I = MatrixXd::Identity(x_size, x_size);
+	P_ = (I - K * H_) * P_;
+	measurementsLidar++;
+	if((z-z_pred).transpose()*Si*(z-z_pred)>5.991)
+	{
+		topLidarNIS++;
+	}
+	cout << "NIS over 5.991: tops nis " << topLidarNIS << " measurements " <<measurementsLidar << endl;
+
 }
 
 /**
@@ -437,4 +460,10 @@ S.fill(0.0);
       x_+=Kgain*z_diff;
   
   P_ = (P_ - Kgain*S*Kgain.transpose());
+	measurementsRadar++;
+	if((z-z_pred).transpose()*S.inverse()*(z-z_pred)>7.815)
+	{
+		topRadarNIS++;
+	}
+	cout << "NIS over 7.815: tops nis " << topRadarNIS << " measurements " <<measurementsRadar << endl;
 }
