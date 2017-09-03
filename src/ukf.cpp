@@ -124,7 +124,7 @@ float ro,theta, ro_dot;
 			x_ = VectorXd(5);
 float px = meas_package.raw_measurements_[0];
 float py = meas_package.raw_measurements_[1];
-			x_  << px, py, 1/sin(atan2(py,px))*py, atan2(py,px), 0;
+			x_  << px, py, 0, 0, 0;
 
 
 		}
